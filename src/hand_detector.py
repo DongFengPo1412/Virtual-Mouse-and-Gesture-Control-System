@@ -17,6 +17,7 @@ class HandDetector:
         self.hands = self.mpHands.Hands(
             static_image_mode=self.mode,
             max_num_hands=self.maxHands,
+            model_complexity=0,  # 使用极速轻量级检测模型，大幅降低推理延迟
             min_detection_confidence=self.detectionCon,
             min_tracking_confidence=self.trackCon
         )
