@@ -1,42 +1,42 @@
-# AI Virtual Mouse & Gesture Control System
+# AI 虚拟鼠标与手势控制系统
 
-An AI-based virtual mouse and gesture control system using OpenCV, MediaPipe, NumPy, and PyAutoGUI. This application detects hand gestures using a computer webcam and maps them to control the system mouse cursor (move and click).
+这是一个基于 OpenCV、MediaPipe、NumPy 和 PyAutoGUI 开发的 AI 虚拟鼠标与手势控制系统。该程序通过电脑摄像头检测手势，并将手势映射为系统鼠标的光标移动和点击操作。
 
-## Features
+## 功能特性
 
-- **Smooth Cursor Movement**: Move the cursor by pointing with only your index finger. Implements a smoothing factor to minimize cursor jitter.
-- **Click Action**: Click by raising both the index and middle fingers and bringing them close together (distance < 40 pixels).
-- **Fail-safe disabled**: Allows the cursor to reach all corners of the screen without throwing PyAutoGUI fail-safe errors.
-- **FPS Display**: Displays the current processing frame rate on the camera feed.
+- **平滑的光标移动**：仅竖起**食指**即可控制光标移动。系统内置了平滑因子，能有效减少光标抖动。
+- **点击操作**：同时竖起**食指**和**中指**，并将它们并拢（指尖距离小于 40 像素）即可触发鼠标点击。
+- **防止边缘卡死 (Fail-safe disabled)**：移除了 PyAutoGUI 的 fail-safe 限制，允许光标流畅移至屏幕边缘及角落。
+- **FPS 实时显示**：在摄像头画面左上角实时显示当前帧率。
 
-## Gesture Definition
+## 手势定义
 
-1. **Cursor Control (Moving)**:
-   - Raise only the **Index Finger** (Index finger = Up, Middle finger = Down).
-   - Move your hand to move the mouse cursor across the screen.
+1. **光标移动**：
+   - 仅竖起**食指**（食指竖起，中指及其他手指弯曲）。
+   - 移动手部，即可同步控制屏幕上鼠标光标的位置。
 
-2. **Clicking**:
-   - Raise both the **Index Finger** and the **Middle Finger**.
-   - Bring them close together to trigger a mouse click action.
+2. **鼠标点击**：
+   - 同时竖起**食指**和**中指**。
+   - 将两个手指靠拢，当距离缩短至阈值以下时，会触发鼠标单击。
 
-## Getting Started
+## 快速上手
 
-### Prerequisites
+### 环境准备
 
-You need Python installed. Install the required Python packages using pip:
+在运行此项目前，请确保您已安装 Python，并使用 pip 安装以下依赖项：
 
 ```bash
 pip install opencv-python numpy mediapipe pyautogui
 ```
 
-### Running the Application
+### 运行程序
 
-Simply run the main Python script:
+直接运行主 Python 脚本：
 
 ```bash
 python main.py
 ```
 
-### Exit
+### 退出程序
 
-Press the **'q'** key in the camera window to safely exit the program.
+在摄像头画面窗口中，按下键盘上的 **'q'** 键即可安全退出程序。
