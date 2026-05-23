@@ -7,8 +7,9 @@ from src.mouse_controller import MouseController
 # 参数配置区 (Parameters)
 # ==========================================
 wCam, hCam = 640, 480       # 摄像头分辨率
-frameR = 100                # 边缘缩减区域，方便映射到屏幕边缘
-smoothening = 6             # 平滑因子，值越大越平滑，响应越慢
+frameR_x = 130              # 左右边缘缩减宽度
+frameR_y = 115              # 上下边缘缩减高度
+smoothening = 4             # 平滑因子，调小（如4）响应更快，延迟更低；调大更平滑，但有滞后
 
 def main():
     # 1. 初始化摄像头
@@ -22,14 +23,14 @@ def main():
 
     # 2. 初始化核心模块
     detector = HandDetector(maxHands=1, detectionCon=0.75, trackCon=0.55)
-    controller = MouseController(wCam=wCam, hCam=hCam, smoothening=smoothening, frameR=frameR)
+    controller = MouseController(wCam=wCam, hCam=hCam, smoothening=smoothening, frameR_x=frameR_x, frameR_y=frameR_y)
 
     pTime = 0
-    print("AI 虚拟鼠标系统已启动。操作提示：")
-    print(" - 仅竖起食指: 移动鼠标光标")
-    print(" - 食指与中指并拢: 鼠标左击 / 按住拖动")
-    print(" - 仅食指竖起 & 拇指与中指捏合: 鼠标右击")
-    print(" - 食指、中指、无名指三指竖起: 上下移动手掌实现页面滚动")
+    print("AI 虚拟鼠标系统已启动。操作提示（已针对人类舒适度深度优化）：")
+    print(" - 仅竖起食指: 移动鼠标光标（使用关节追踪，完全防抖）")
+    print(" - 大拇指与食指捏合: 鼠标左击 / 按住拖拽")
+    print(" - 大拇指与中指捏合: 鼠标右击")
+    print(" - 食指、中指、无名指三指伸直: 激活虚拟摇杆滚动（手掌偏离中心线上移/下移即可平滑长距离滚动）")
     print(" - 按下 'q' 键退出程序。")
 
     while True:
@@ -59,30 +60,30 @@ def main():
             # 执行鼠标控制
             controller.move_and_action(lmList, fingers, palm_scale, img)
 
-            # 根据手指状态判定当前操作类型，用于 OSD 显示
-            if fingers[1] == 1 and fingers[3] == 0 and fingers[4] == 0:
-                x_index, y_index = lmList[8][1:]
-                x_middle, y_middle = lmList[12][1:]
-                dist = controller.get_distance((x_index, y_index), (x_middle, y_middle))
-                ratio = dist / palm_scale
-                
-                if fingers[2] == 1 and ratio < controller.click_ratio:
-                    current_state = "Left Click / Drag"
-                elif fingers[2] == 0:
-                    current_state = "Moving"
-            elif fingers[1] == 1 and fingers[2] == 0:
-                x_thumb, y_thumb = lmList[4][1:]
-                x_middle, y_middle = lmList[12][1:]
-                dist = controller.get_distance((x_thumb, y_thumb), (x_middle, y_middle))
-                ratio = dist / palm_scale
-                if ratio < controller.right_click_ratio:
-                    current_state = "Right Click"
-                else:
-                    current_state = "Ready"
-            elif fingers[1] == 1 and fingers[2] == 1 and fingers[3] == 1 and fingers[4] == 0:
+            # 解析用于 OSD 显示的当前状态
+            is_scroll_mode = (fingers[1] == 1 and fingers[2] == 1 and fingers[3] == 1 and fingers[4] == 0)
+            
+            if is_scroll_mode:
                 current_state = "Scrolling"
             else:
-                current_state = "Ready"
+                x_thumb, y_thumb = lmList[4][1:]
+                x_index, y_index = lmList[8][1:]
+                x_middle, y_middle = lmList[12][1:]
+                
+                dist_ti = controller.get_distance((x_thumb, y_thumb), (x_index, y_index))
+                ratio_ti = dist_ti / palm_scale
+                
+                dist_tm = controller.get_distance((x_thumb, y_thumb), (x_middle, y_middle))
+                ratio_tm = dist_tm / palm_scale
+
+                if ratio_ti < controller.click_ratio:
+                    current_state = "Left Click / Drag"
+                elif ratio_tm < controller.right_click_ratio:
+                    current_state = "Right Click"
+                elif fingers[1] == 1:
+                    current_state = "Moving"
+                else:
+                    current_state = "Ready"
 
             # 绘制检测手部包围框 (稍微平滑美观一些)
             if bbox:
@@ -90,9 +91,9 @@ def main():
                 cv2.rectangle(img, (xmin - 15, ymin - 15), (xmax + 15, ymax + 15), (0, 255, 100), 2)
 
         # 7. 绘制 UI OSD 界面与映射区域框
-        # 绘制操作活动区（紫色框，圆角视觉）
-        cv2.rectangle(img, (frameR, frameR), (wCam - frameR, hCam - frameR), (255, 0, 180), 2)
-        cv2.putText(img, "Active Area", (frameR + 10, frameR - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 180), 1)
+        # 绘制操作活动区（紫色框，根据X/Y独立设定）
+        cv2.rectangle(img, (frameR_x, frameR_y), (wCam - frameR_x, hCam - frameR_y), (255, 0, 180), 2)
+        cv2.putText(img, "Active Area", (frameR_x + 10, frameR_y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 180), 1)
 
         # 计算实时 FPS
         cTime = time.time()

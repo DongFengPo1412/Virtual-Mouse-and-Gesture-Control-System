@@ -77,33 +77,39 @@ class HandDetector:
 
     def fingersUp(self, handNo=0):
         """
-        判断各手指是否竖起，返回形如 [0, 1, 1, 0, 0] 的列表
-        完美支持左右手自适应大拇指检测
+        根据指点与手腕（或相邻关节）的欧氏距离比值判定手指是否竖起。
+        此算法完全旋转无关（Rotation-Invariant），无论手部侧倾、旋转还是倒置，均能精准检测。
         """
         fingers = []
         if len(self.lmList) == 0:
             return fingers
 
-        # 获取当前手是左手还是右手
-        handType = self.getHandedness(handNo)
+        palm_scale = self.getPalmScale()
 
-        # 1. 大拇指自适应判定
-        # 右手：大拇指尖(4)的 x 坐标小于第一指节(3)的 x 坐标，代表向外伸展（竖起）
-        # 左手：大拇指尖(4)的 x 坐标大于第一指节(3)的 x 坐标，代表向外伸展（竖起）
-        if handType == "Right":
-            if self.lmList[self.tipIds[0]][1] < self.lmList[self.tipIds[0] - 1][1]:
-                fingers.append(1)
-            else:
-                fingers.append(0)
-        else:  # Left Hand
-            if self.lmList[self.tipIds[0]][1] > self.lmList[self.tipIds[0] - 1][1]:
-                fingers.append(1)
-            else:
-                fingers.append(0)
+        # 1. 大拇指判定：计算大拇指尖(4)到食指根部关节(5)的距离
+        # 伸直时距离较大（通常 > 0.58 * palm_scale），弯折时贴近食指根部
+        x4, y4 = self.lmList[4][1:]
+        x5, y5 = self.lmList[5][1:]
+        dist_thumb_to_index_base = math.hypot(x5 - x4, y5 - y4)
+        if dist_thumb_to_index_base / palm_scale > 0.58:
+            fingers.append(1)
+        else:
+            fingers.append(0)
 
-        # 2. 其他 4 指判定（指尖 y 坐标小于指节 y 坐标代表伸直）
-        for id in range(1, 5):
-            if self.lmList[self.tipIds[id]][2] < self.lmList[self.tipIds[id] - 2][2]:
+        # 2. 其他四指判定：计算指尖到手腕(0)的距离与手掌比例的比值
+        # 伸直时通常 > 1.35（小指 > 1.25），弯折时因卷缩在掌心，该比值会降到 1.1 以下
+        x0, y0 = self.lmList[0][1:]
+        
+        # 对应：食指(8), 中指(12), 无名指(16), 小指(20)
+        tip_ids = [8, 12, 16, 20]
+        thresholds = [1.35, 1.35, 1.35, 1.25]
+        
+        for idx, tip_id in enumerate(tip_ids):
+            x_tip, y_tip = self.lmList[tip_id][1:]
+            dist_to_wrist = math.hypot(x_tip - x0, y_tip - y0)
+            ratio = dist_to_wrist / palm_scale
+            
+            if ratio > thresholds[idx]:
                 fingers.append(1)
             else:
                 fingers.append(0)
