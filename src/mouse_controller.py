@@ -90,6 +90,7 @@ class MouseController:
             self.has_target = False
             self.scroll_start_y = None
             self.action_val = "System Off"
+            self.prev_x_track = None  # 重置历史定位坐标
             return
 
         if len(lmList) == 0:
@@ -100,6 +101,7 @@ class MouseController:
             self.has_target = False
             self.scroll_start_y = None
             self.action_val = "No Hand"
+            self.prev_x_track = None  # 重置历史定位坐标
             return
 
         # 提取关键手指的坐标
@@ -110,6 +112,18 @@ class MouseController:
         
         # 使用食指根部关节(5)进行屏幕坐标映射追踪，防止手指捏合时指尖剧烈抖动导致光标漂移
         x_track, y_track = lmList[5][1:]
+
+        # 【源头防抖核心 1】：初始化上一帧的相机坐标
+        if not hasattr(self, 'prev_x_track') or self.prev_x_track is None:
+            self.prev_x_track, self.prev_y_track = x_track, y_track
+
+        # 【源头防抖核心 2】：在相机低分辨率坐标系（640x480）中计算微小噪声
+        # 如果手部变化距离小于 1.3 像素，则判定为镜头噪点，强制锁定坐标为上一帧值
+        dist_cam = math.hypot(x_track - self.prev_x_track, y_track - self.prev_y_track)
+        if dist_cam < 1.3:
+            x_track, y_track = self.prev_x_track, self.prev_y_track
+        else:
+            self.prev_x_track, self.prev_y_track = x_track, y_track
 
         # 计算最新的捏合比例
         dist_thumb_index = self.get_distance((x_thumb, y_thumb), (x_index, y_index))
@@ -135,10 +149,9 @@ class MouseController:
                 self.target_x, self.target_y = x3, y3
                 self.has_target = True
 
-            # 1.3 【抖动消除核心】：计算新目标坐标与当前平滑坐标的屏幕距离
-            # 如果变动小于 3.5 像素（相机微小噪声区间），则维持当前目标不更新，使鼠标绝对静止
+            # 1.3 辅助屏幕死区（双重保障）
             dist_to_current = math.hypot(x3 - self.clocX, y3 - self.clocY)
-            if dist_to_current > 3.5:
+            if dist_to_current > 2.0:
                 self.target_x, self.target_y = x3, y3
                 self.has_target = True
 
