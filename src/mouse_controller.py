@@ -59,16 +59,31 @@ class MouseController:
 
     def _mouse_interpolation_loop(self):
         """
-        以 180Hz 的高频微循环进行坐标平滑插值移动，模拟原生 180Hz 高刷鼠标手感
+        以 180Hz 的高频微循环进行坐标自适应平滑插值移动，彻底过滤静止抖动，模拟原生 180Hz 高刷鼠标
         """
         while True:
             if self.active and self.has_target:
-                # 180Hz 平滑插值逼近计算 (一阶低通滤波)
-                self.clocX = self.clocX + (self.target_x - self.clocX) / self.smoothening
-                self.clocY = self.clocY + (self.target_y - self.clocY) / self.smoothening
+                dx = self.target_x - self.clocX
+                dy = self.target_y - self.clocY
+                dist = math.hypot(dx, dy)
                 
-                # 避开微小的浮点数波动，减少不必要的系统API调用开销
-                if abs(self.target_x - self.clocX) > 0.1 or abs(self.target_y - self.clocY) > 0.1:
+                # 自适应平滑系数计算 (根据移动速度/距离动态调节)
+                # GUI 上的平滑度拉杆 self.smoothening 将作为滤波器总灵敏度系数
+                scale = 4.0 / max(1.0, self.smoothening)
+                
+                # 极小位移时 min_alpha 设为 0.008 配合 scale，实施极重低通滤波，将微小抖动彻底抹平
+                min_alpha = 0.008 * scale
+                max_alpha = 0.25 * scale
+                
+                # 使用二次方指数过渡：位移越小，alpha 衰减越快，静止时抖动几乎衰减为 0
+                alpha = min_alpha + (max_alpha - min_alpha) * min(1.0, (dist / 45.0) ** 2)
+                
+                # 平滑逼近
+                self.clocX = self.clocX + dx * alpha
+                self.clocY = self.clocY + dy * alpha
+                
+                # 避开极小变化（如差值已收敛至 0.5 像素以内），防止鼠标产生微小物理偏移
+                if abs(dx) > 0.5 or abs(dy) > 0.5:
                     pyautogui.moveTo(int(self.clocX), int(self.clocY))
             
             # 1/180 秒 = 0.00555... 秒 (约 5.5ms)
@@ -118,9 +133,9 @@ class MouseController:
             self.prev_x_track, self.prev_y_track = x_track, y_track
 
         # 【源头防抖核心 2】：在相机低分辨率坐标系（640x480）中计算微小噪声
-        # 如果手部变化距离小于 1.3 像素，则判定为镜头噪点，强制锁定坐标为上一帧值
+        # 由于我们采用了 float 高精坐标，排除了 int 取整跳跃，阈值可以设得更小更细腻（设为 0.6 相机像素）
         dist_cam = math.hypot(x_track - self.prev_x_track, y_track - self.prev_y_track)
-        if dist_cam < 1.3:
+        if dist_cam < 0.6:
             x_track, y_track = self.prev_x_track, self.prev_y_track
         else:
             self.prev_x_track, self.prev_y_track = x_track, y_track
@@ -149,9 +164,9 @@ class MouseController:
                 self.target_x, self.target_y = x3, y3
                 self.has_target = True
 
-            # 1.3 辅助屏幕死区（双重保障）
+            # 1.3 辅助屏幕死区（双重保障，浮点精度下设为 1.5 屏幕像素）
             dist_to_current = math.hypot(x3 - self.clocX, y3 - self.clocY)
-            if dist_to_current > 2.0:
+            if dist_to_current > 1.5:
                 self.target_x, self.target_y = x3, y3
                 self.has_target = True
 

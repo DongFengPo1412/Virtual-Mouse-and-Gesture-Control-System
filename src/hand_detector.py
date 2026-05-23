@@ -38,7 +38,7 @@ class HandDetector:
         return img
 
     def findPosition(self, img, handNo=0, draw=True):
-        """获取手部所有关键点坐标及包围框"""
+        """获取手部所有关键点坐标及包围框（使用float高精坐标，避免量化抖动）"""
         self.lmList = []
         xList = []
         yList = []
@@ -49,15 +49,16 @@ class HandDetector:
                 myHand = self.results.multi_hand_landmarks[handNo]
                 for id, lm in enumerate(myHand.landmark):
                     h, w, c = img.shape
-                    cx, cy = int(lm.x * w), int(lm.y * h)
+                    # 保留 float 亚像素高精度坐标，移除 int 强制类型转换
+                    cx, cy = lm.x * w, lm.y * h
                     xList.append(cx)
                     yList.append(cy)
                     self.lmList.append([id, cx, cy])
                     if draw:
-                        cv2.circle(img, (cx, cy), 5, (255, 0, 255), cv2.FILLED)
+                        cv2.circle(img, (int(cx), int(cy)), 5, (255, 0, 255), cv2.FILLED)
 
-                xmin, xmax = min(xList), max(xList)
-                ymin, ymax = min(yList), max(yList)
+                xmin, xmax = int(min(xList)), int(max(xList))
+                ymin, ymax = int(min(yList)), int(max(yList))
                 bbox = xmin, ymin, xmax, ymax
 
                 if draw:
