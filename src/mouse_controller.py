@@ -132,12 +132,17 @@ class MouseController:
             # 1.2 如果前一帧手部不在移动态，则将插值起点与当前真实鼠标位置对齐，防大范围跳跃
             if not self.has_target:
                 self.clocX, self.clocY = pyautogui.position()
+                self.target_x, self.target_y = x3, y3
                 self.has_target = True
 
-            # 设置 180Hz 线程的目标值
-            self.target_x, self.target_y = x3, y3
+            # 1.3 【抖动消除核心】：计算新目标坐标与当前平滑坐标的屏幕距离
+            # 如果变动小于 3.5 像素（相机微小噪声区间），则维持当前目标不更新，使鼠标绝对静止
+            dist_to_current = math.hypot(x3 - self.clocX, y3 - self.clocY)
+            if dist_to_current > 3.5:
+                self.target_x, self.target_y = x3, y3
+                self.has_target = True
 
-            # 1.3 如果大拇指与食指捏合 -> 触发左键按下（单击/拖拽）
+            # 1.4 如果大拇指与食指捏合 -> 触发左键按下（单击/拖拽）
             if ratio_thumb_index < self.click_ratio:
                 if not self.is_left_clicked:
                     pyautogui.mouseDown()
