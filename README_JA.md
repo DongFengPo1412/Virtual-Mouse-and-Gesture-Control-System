@@ -89,56 +89,84 @@ flowchart LR
 
 ### 1. MediaPipe BlazePalm と 21 点 3D 空間トポロジー
 単眼 BlazePalm 検出器によって手の存在領域と掌の回転姿勢を特定し、続いて回帰モデルにより 21 個の 3D 関節座標空間点群を推定します：
-$$\mathcal{P} = \{P_i = (x_i, y_i, z_i) \mid i \in [0, 20]\}$$
-ここで、$P_0$ は手首（Wrist）、$P_5$ は人差し指中手指節関節（MCP）、$P_8$ は人差し指先端、$P_{12}$ は中指先端を表します。
+
+$$
+\mathcal{P} = \{P_i = (x_i, y_i, z_i) \mid i \in [0, 20]\}
+$$
+
+ここで、 $P_0$ は手首（Wrist）、 $P_5$ は人差し指中手指節関節（MCP）、 $P_8$ は人差し指先端、 $P_{12}$ は中指先端を表します。
 
 ### 2. 動的アスペクト比 ROI マッピングモデル
-カメラ周辺部の歪みと腕の稼働域の限界に対処するため、マージン縮小領域（Frame Reduction Margin: $R_x, R_y$）を備えた動的関心領域（ROI）を構成します：
+カメラ周辺部の歪みと腕の稼働域の限界に対処するため、マージン縮小領域（Frame Reduction Margin: $R_x, R_y$ ）を備えた動的関心領域（ROI）を構成します：
 
-$$x_{norm} = \text{clamp}\left(\frac{x_{raw} - R_x}{W_{cam} - 2R_x}, 0.0, 1.0\right)$$
+$$
+x_{\text{norm}} = \text{clamp}\left(\frac{x_{\text{raw}} - R_x}{W_{\text{cam}} - 2R_x}, 0.0, 1.0\right)
+$$
 
-$$y_{norm} = \text{clamp}\left(\frac{y_{raw} - R_y}{H_{cam} - 2R_y}, 0.0, 1.0\right)$$
+$$
+y_{\text{norm}} = \text{clamp}\left(\frac{y_{\text{raw}} - R_y}{H_{\text{cam}} - 2R_y}, 0.0, 1.0\right)
+$$
 
-対象ディスプレイ解像度 $(W_{screen}, H_{screen})$ への座標変換：
+対象ディスプレイ解像度 $(W_{\text{screen}}, H_{\text{screen}})$ への座標変換：
 
-$$X_{target} = \text{round}\left( x_{norm} \cdot W_{screen} \cdot \gamma_x \right)$$
+$$
+X_{\text{target}} = \text{round}\left( x_{\text{norm}} \cdot W_{\text{screen}} \cdot \gamma_x \right)
+$$
 
-$$Y_{target} = \text{round}\left( y_{norm} \cdot H_{screen} \cdot \gamma_y \right)$$
+$$
+Y_{\text{target}} = \text{round}\left( y_{\text{norm}} \cdot H_{\text{screen}} \cdot \gamma_y \right)
+$$
 
 ここで $\gamma_x, \gamma_y$ は各軸の感度ゲイン係数です（GUI 上で動的設定可能、デフォルト 1.5）。
 
 ### 3. 手掌スケール不変性ジェスチャー判定基準
 カメラとの距離変動による判定誤差を排除するため、手首 $P_0$ と中指付け根 $P_9$ 間のユークリッド距離を**基準手掌スケール（Palm Scale）**として定義します：
 
-$$S_{palm} = \|P_9 - P_0\|_2 = \sqrt{(x_9 - x_0)^2 + (y_9 - y_0)^2}$$
+$$
+S_{\text{palm}} = \|P_9 - P_0\|_2 = \sqrt{(x_9 - x_0)^2 + (y_9 - y_0)^2}
+$$
 
 任意の 2 ランドマーク $P_i, P_j$ 間の無次元正規化距離は以下の通りです：
 
-$$\rho_{ij} = \frac{\|P_i - P_j\|_2}{S_{palm}}$$
+$$
+\rho_{ij} = \frac{\|P_i - P_j\|_2}{S_{\text{palm}}}
+$$
 
-親指と人差し指の距離比率が $\rho_{thumb, index} < \tau_{click}$ を満たした場合に左クリック／ドラッグを発火させます。
+親指と人差し指の距離比率が $\rho_{\text{thumb}, \text{index}} \lt \tau_{\text{click}}$ を満たした場合に左クリック／ドラッグを発火させます。
 
 ### 4. 2次適応型ローパスフィルタ (Quadratic Adaptive EWMA Smoothing)
 微細操作時の手振れ除去と、画面横断スイープ時の追従遅延ゼロを両立させるため、変位速度に依存する 2 次適応型係数を算出します：
 
-$$\Delta_t = \sqrt{(X_t - \hat{X}_{t-1})^2 + (Y_t - \hat{Y}_{t-1})^2}$$
+$$
+\Delta_t = \sqrt{(X_t - \hat{X}_{t-1})^2 + (Y_t - \hat{Y}_{t-1})^2}
+$$
 
-$$\alpha_t = \text{clamp}\left( \frac{1}{\text{smooth}} \cdot \left(\frac{\Delta_t}{\delta_0}\right)^2, \alpha_{min}, \alpha_{max} \right)$$
+$$
+\alpha_t = \text{clamp}\left( \frac{1}{\text{smooth}} \cdot \left(\frac{\Delta_t}{\delta_0}\right)^2, \alpha_{\min}, \alpha_{\max} \right)
+$$
 
-ここで $\delta_0 = 45.0\text{ px}$ は基準変位、$[\alpha_{min}, \alpha_{max}] = [0.05, 0.95]$ です：
-- **微速・静止時（$\Delta_t \to 0$）**：$\alpha_t \to 0.05$。強力なローパスフィルタが適用され、デッドゾーン（$<0.6\text{ px}$）処理により生理的震戦を完全に抑制；
-- **高速移動時（$\Delta_t \gg 45$）**：$\alpha_t \to 0.95$。フィルタ抵抗が最小化され、瞬時に 1:1 でカーソルが追従。
+ここで $\delta_0 = 45.0\text{ px}$ は基準変位、 $[\alpha_{\min}, \alpha_{\max}] = [0.05, 0.95]$ です：
+- **微速・静止時** ($\Delta_t \to 0$) ： $\alpha_t \to 0.05$ 。強力なローパスフィルタが適用され、デッドゾーン（$\lt 0.6\text{ px}$）処理により生理的震戦を完全に抑制；
+- **高速移動時** ($\Delta_t \gg 45$) ： $\alpha_t \to 0.95$ 。フィルタ抵抗が最小化され、瞬時に 1:1 でカーソルが追従。
 
 最終的な平滑化座標漸化式：
 
-$$\hat{X}_t = \alpha_t X_t + (1 - \alpha_t) \hat{X}_{t-1},\quad \hat{Y}_t = \alpha_t Y_t + (1 - \alpha_t) \hat{Y}_{t-1}$$
+$$
+\hat{X}_t = \alpha_t X_t + (1 - \alpha_t) \hat{X}_{t-1}
+$$
+
+$$
+\hat{Y}_t = \alpha_t Y_t + (1 - \alpha_t) \hat{Y}_{t-1}
+$$
 
 ### 5. 180Hz 独立バックグラウンド時間補間エンジン
-一般的な実装ではカメラのフレームレート（約 30Hz）にカーソル描画が束縛されます。本システムでは**独立した高周波デーモンスレッド**を立ち上げ、$f_{interp} = 180\text{ Hz}$（周期約 5.5ms）でバイリニア補間を実行：
+一般的な実装ではカメラのフレームレート（約 30Hz）にカーソル描画が束縛されます。本システムでは**独立した高周波デーモンスレッド**を立ち上げ、 $f_{\text{interp}} = 180\text{ Hz}$ （周期約 5.5ms）でバイリニア補間を実行：
 
-$$\Delta X = X_{target} - X_{current},\quad \Delta Y = Y_{target} - Y_{current}$$
+$$
+\Delta X = X_{\text{target}} - X_{\text{current}}, \quad \Delta Y = Y_{\text{target}} - Y_{\text{current}}
+$$
 
-$\|\Delta\|_{2} > \epsilon$ の場合、サブピクセル刻みで OS マウスドライバへ座標を送信。一般的な 30FPS カメラを用いても、ゲーミングマウスのような滑らかな操作感を実現します。
+$\|\Delta\|_2 \gt \epsilon$ の場合、サブピクセル刻みで OS マウスドライバへ座標を送信。一般的な 30FPS カメラを用いても、ゲーミングマウスのような滑らかな操作感を実現します。
 
 ### 6. MCP Landmark-5 クリック防抖アンカーロック
 クリック動作時、指先の収縮運動によって空間的な位置ズレが生じます。本システムはクリック兆候を捉えた瞬間、追従対象を**人差し指付け根の Landmark 5 に即座にアンカー固定**し、クリック時の位置ブレを完全に根絶します。
@@ -151,10 +179,10 @@ $\|\Delta\|_{2} > \epsilon$ の場合、サブピクセル刻みで OS マウス
 
 | アクション (Action) | 手の形態 (Gesture) | 判定ロジック (Logic) | OS 制御イベント |
 |:---|:---|:---|:---|
-| **カーソル滑らか移動** | 人差し指のみを伸ばし、他指を握る | $F_{index} = 1$、その他 $=0$ | 180Hz でマウス座標 $(X, Y)$ を滑らかに更新 |
-| **左クリック／ドラッグ** | 親指と人差し指をピンチ（つまむ） | $\rho_{4, 8} < 0.28 \times S_{palm}$ | 短押しで通常クリック、保持でドラッグ＆ドロップ |
-| **右クリック** | 親指と中指をピンチ | $\rho_{4, 12} < 0.28 \times S_{palm}$ | コンテキストメニュー `mouse.right_click()` を送信 |
-| **仮想ホイールスクロール** | 人差し指と中指を揃えて伸ばす | $F_{index}=1, F_{mid}=1$ | 2本の指の垂直移動量に応じてスクロール `mouse.scroll(dy)` |
+| **カーソル滑らか移動** | 人差し指のみを伸ばし、他指を握る | $F_{\text{index}} = 1$ 、その他 $=0$ | 180Hz でマウス座標 $(X, Y)$ を滑らかに更新 |
+| **左クリック／ドラッグ** | 親指と人差し指をピンチ（つまむ） | $\rho_{4, 8} \lt 0.28 \times S_{\text{palm}}$ | 短押しで通常クリック、保持でドラッグ＆ドロップ |
+| **右クリック** | 親指と中指をピンチ | $\rho_{4, 12} \lt 0.28 \times S_{\text{palm}}$ | コンテキストメニュー `mouse.right_click()` を送信 |
+| **仮想ホイールスクロール** | 人差し指と中指を揃えて伸ばす | $F_{\text{index}}=1, F_{\text{mid}}=1$ | 2本の指の垂直移動量に応じてスクロール `mouse.scroll(dy)` |
 | **待機・ニュートラル状態** | 拳を握る、または自然に開いた状態 | 各ジェスチャー条件に非該当 | ポインタ固定、誤動作防止状態を維持 |
 
 ---
@@ -165,11 +193,11 @@ $\|\Delta\|_{2} > \epsilon$ の場合、サブピクセル刻みで OS マウス
 
 | 解像度設定 | 推論フレームレート (FPS) | パイプライン遅延 | 補間出力周波数 | CPU 使用率 | メモリ消費 (RAM) | 総合評価 |
 |:---|:---:|:---:|:---:|:---:|:---:|:---:|
-| **$640 \times 480$ (推奨デフォルト)** | **$30 \sim 35\text{ FPS}$** | **$< 33\text{ ms}$** | **$180\text{ Hz}$** | **$16\% \sim 18\%$** | **$\sim 120\text{ MB}$** | 🌟 **極めて優良 (Optimal)** |
-| **$1280 \times 720$ (HD 入力)** | $22 \sim 25\text{ FPS}$ | $\sim 44\text{ ms}$ | $180\text{ Hz}$ | $32\% \sim 35\%$ | $\sim 155\text{ MB}$ | 高精度 (High Precision) |
-| **$1920 \times 1080$ (フル HD 入力)** | $13 \sim 15\text{ FPS}$ | $\sim 71\text{ ms}$ | $180\text{ Hz}$ | $60\% \sim 65\%$ | $\sim 210\text{ MB}$ | 計算負荷大 (Heavy) |
+| **640 × 480 (推奨デフォルト)** | **30 ~ 35 FPS** | **< 33 ms** | **180 Hz** | **16% ~ 18%** | **~120 MB** | 🌟 **極めて優良 (Optimal)** |
+| **1280 × 720 (HD 入力)** | 22 ~ 25 FPS | ~44 ms | 180 Hz | 32% ~ 35% | ~155 MB | 高精度 (High Precision) |
+| **1920 × 1080 (フル HD 入力)** | 13 ~ 15 FPS | ~71 ms | 180 Hz | 60% ~ 65% | ~210 MB | 計算負荷大 (Heavy) |
 
-> **結論**：$640 \times 480$ 設定時、フレーム処理遅延はカメラの露光周期内に収まり、CPU 使用率は 20% 以下に保たれるため、他アプリと並行して快適に常駐動作が可能です。
+> **結論**： 640 × 480 設定時、フレーム処理遅延はカメラの露光周期内に収まり、CPU 使用率は 20% 以下に保たれるため、他アプリと並行して快適に常駐動作が可能です。
 
 ---
 
