@@ -88,54 +88,57 @@ flowchart LR
 ```
 
 ### 1. MediaPipe BlazePalm 与 21 点 3D 骨架拓扑
+
 系统采用单目单阶段 BlazePalm 检测网络完成掌心极坐标回归与旋转姿态估计，进而通过回归网络推断出 21 个 3D 关节坐标空间点集：
 
 $$
 \mathcal{P} = \{P_i = (x_i, y_i, z_i) \mid i \in [0, 20]\}
 $$
 
-其中 $P_0$ 为手腕关节点（Wrist）， $P_5$ 为食指掌指关节（Index Finger MCP）， $P_8$ 为食指指尖（Index Fingertip）， $P_{12}$ 为中指指尖（Middle Fingertip）。
+其中 $P_0$ 为手腕关节点（Wrist），$P_5$ 为食指掌指关节（Index Finger MCP），$P_8$ 为食指指尖（Index Fingertip），$P_{12}$ 为中指指尖（Middle Fingertip）。
 
 ### 2. 动态自适应宽高比 ROI 映射模型
-普通摄像头由于存在边缘畸变且人体手臂摆动范围有限，直接全图映射会导致屏幕边缘难以触达。系统构建了带有活动安全余量（Frame Reduction Margin）的动态感兴趣区域（ROI）：
-设摄像头图像宽度为 $W_{\text{cam}}$ 、高度为 $H_{\text{cam}}$ ，X 轴与 Y 轴缩减边界分别为 $R_x, R_y$ 。归一化映射坐标定义为：
+
+普通摄像头由于存在边缘畸变且人体手臂摆动范围有限，直接全图映射会导致屏幕边缘难以触达。系统构建了带有活动安全余量（Frame Reduction Margin）的动态感兴趣区域（ROI）：设摄像头图像宽度为 $W_{cam}$、高度为 $H_{cam}$，X 轴与 Y 轴缩减边界分别为 $R_x, R_y$。归一化映射坐标定义为：
 
 $$
-x_{\text{norm}} = \text{clamp}\left(\frac{x_{\text{raw}} - R_x}{W_{\text{cam}} - 2R_x}, 0.0, 1.0\right)
-$$
-
-$$
-y_{\text{norm}} = \text{clamp}\left(\frac{y_{\text{raw}} - R_y}{H_{\text{cam}} - 2R_y}, 0.0, 1.0\right)
-$$
-
-映射至目标屏幕分辨率 $(W_{\text{screen}}, H_{\text{screen}})$ ：
-
-$$
-X_{\text{target}} = \text{round}\left( x_{\text{norm}} \cdot W_{\text{screen}} \cdot \gamma_x \right)
+x_{norm} = \text{clamp}\left(\frac{x_{raw} - R_x}{W_{cam} - 2R_x}, 0.0, 1.0\right)
 $$
 
 $$
-Y_{\text{target}} = \text{round}\left( y_{\text{norm}} \cdot H_{\text{screen}} \cdot \gamma_y \right)
+y_{norm} = \text{clamp}\left(\frac{y_{raw} - R_y}{H_{cam} - 2R_y}, 0.0, 1.0\right)
+$$
+
+映射至目标屏幕分辨率 $(W_{screen}, H_{screen})$：
+
+$$
+X_{target} = \text{round}\left( x_{norm} \cdot W_{screen} \cdot \gamma_x \right)
+$$
+
+$$
+Y_{target} = \text{round}\left( y_{norm} \cdot H_{screen} \cdot \gamma_y \right)
 $$
 
 其中 $\gamma_x, \gamma_y$ 为各轴灵敏度调节增益（GUI 可动态调整，默认 1.5）。
 
 ### 3. 手掌尺度不变性手势判定准则
+
 用户操作过程中与摄像头距离不断变化，若采用固定像素距离阈值将导致景深误判。系统以手腕 $P_0$ 与中指掌指关节 $P_9$ 之间的欧氏距离作为**手掌基准尺度（Palm Scale）**：
 
 $$
-S_{\text{palm}} = \|P_9 - P_0\|_2 = \sqrt{(x_9 - x_0)^2 + (y_9 - y_0)^2}
+S_{palm} = \lVert P_9 - P_0 \rVert_2 = \sqrt{(x_9 - x_0)^2 + (y_9 - y_0)^2}
 $$
 
 任意两关键点 $P_i, P_j$ 的尺度无量纲相对距离定义为：
 
 $$
-\rho_{ij} = \frac{\|P_i - P_j\|_2}{S_{\text{palm}}}
+\rho_{ij} = \frac{\lVert P_i - P_j \rVert_2}{S_{palm}}
 $$
 
-当 $\rho_{\text{thumb}, \text{index}} \lt \tau_{\text{click}}$ 且持续维持时触发左键点击/拖拽，彻底消除由于手掌远近变化导致的误触发。
+当满足 $\rho_{thumb, index} \lt \tau_{click}$ 且持续维持时触发左键点击/拖拽，彻底消除由于手掌远近变化导致的误触发。
 
 ### 4. 二次自适应低通滤波 (Quadratic Adaptive EWMA Smoothing)
+
 为了在单点静止微操时消除手颤抖动，同时在快速跨屏滑动时不产生视觉滞后，系统提出了二次速度响应平滑系数方程：
 
 $$
@@ -143,33 +146,31 @@ $$
 $$
 
 $$
-\alpha_t = \text{clamp}\left( \frac{1}{\text{smooth}} \cdot \left(\frac{\Delta_t}{\delta_0}\right)^2, \alpha_{\min}, \alpha_{\max} \right)
+\alpha_t = \text{clamp}\left( \frac{1}{\text{smooth}} \cdot \left(\frac{\Delta_t}{\delta_0}\right)^2, \alpha_{min}, \alpha_{max} \right)
 $$
 
-其中基准位移常数 $\delta_0 = 45.0\text{ px}$ ，动态调节范围 $[\alpha_{\min}, \alpha_{\max}] = [0.05, 0.95]$ ：
-- **微速移动** ($\Delta_t \to 0$) ： $\alpha_t \to 0.05$ ，系统具备极强低通滤波平滑性能，死区滤波（Deadzone $\lt 0.6\text{ px}$）将微小生理震颤完全滤除；
-- **高速甩动** ($\Delta_t \gg 45$) ： $\alpha_t \to 0.95$ ，平滑权重降低，光标以近乎 1:1 的即时响应极速跟随。
+其中基准位移常数 $\delta_0 = 45.0\text{ px}$，动态调节范围 $[\alpha_{min}, \alpha_{max}] = [0.05, 0.95]$：
+- **微速移动** ($\Delta_t \to 0$)：$\alpha_t \to 0.05$，系统具备极强低通滤波平滑性能，死区滤波（Deadzone $\lt 0.6\text{ px}$）将微小生理震颤完全滤除；
+- **高速甩动** ($\Delta_t \gg 45$)：$\alpha_t \to 0.95$，平滑权重降低，光标以近乎 1:1 的即时响应极速跟随。
 
 最终当前平滑坐标递推方程为：
 
 $$
-\hat{X}_t = \alpha_t X_t + (1 - \alpha_t) \hat{X}_{t-1}
-$$
-
-$$
-\hat{Y}_t = \alpha_t Y_t + (1 - \alpha_t) \hat{Y}_{t-1}
+\hat{X}_t = \alpha_t X_t + (1 - \alpha_t) \hat{X}_{t-1},\quad \hat{Y}_t = \alpha_t Y_t + (1 - \alpha_t) \hat{Y}_{t-1}
 $$
 
 ### 5. 180Hz 独立后台时间插值引擎
-常规应用在主检测循环内调用系统光标 API，导致光标更新受限于摄像头帧率（约 30Hz）。本系统创建了**独立高频守护线程（Daemon Thread）**，以 $f_{\text{interp}} = 180\text{ Hz}$ （周期约 5.5ms）执行双线性高频逼近：
+
+常规应用在主检测循环内调用系统光标 API，导致光标更新受限于摄像头帧率（约 30Hz）。本系统创建了**独立高频守护线程（Daemon Thread）**，以 $f_{interp} = 180\text{ Hz}$（周期约 5.5ms）执行双线性高频逼近：
 
 $$
-\Delta X = X_{\text{target}} - X_{\text{current}}, \quad \Delta Y = Y_{\text{target}} - Y_{\text{current}}
+\Delta X = X_{target} - X_{current},\quad \Delta Y = Y_{target} - Y_{current}
 $$
 
-当 $\|\Delta\|_2 \gt \epsilon$ 时，以自适应步长更新当前物理光标坐标并派发底层系统输入驱动。即使在普通 30FPS 摄像头环境下，也能输出媲美高刷新电竞鼠标的丝滑体验。
+当 $\lVert \Delta \rVert_{2} \gt \epsilon$ 时，以自适应步长更新当前物理光标坐标并派发底层系统输入驱动。即使在普通 30FPS 摄像头环境下，也能输出媲美高刷新电竞鼠标的丝滑体验。
 
 ### 6. MCP Landmark-5 点击防抖锚点锁定
+
 由于食指在弯曲点击瞬间，指尖骨骼绕 MCP 关节旋转产生不可避免的平面位移。本系统在判定手指处于点击收拢过渡期时，将光标跟踪坐标**立即切换并锚定在食指掌骨关节 Landmark 5**，并短暂锁定上一稳定位置，彻底根除传统虚拟鼠标“点击即位移”的痛点。
 
 ---
@@ -180,10 +181,10 @@ $$
 
 | 交互功能 (Action) | 手势形态 (Hand Gesture) | 判定规则 (Decision Logic) | 系统底层派发事件 |
 |:---|:---|:---|:---|
-| **光标平滑移动** | 食指伸出，其余手指收拢 | 仅 $F_{\text{index}} = 1$ ，其余为 0 | 180Hz 平滑更新鼠标坐标 $(X, Y)$ |
-| **鼠标左键单击 / 拖拽** | 拇指与食指捏合 | $\rho_{4, 8} \lt 0.28 \times S_{\text{palm}}$ | 单击派发 `mouse.down/up`；捏住不放进入拖拽模式 |
-| **鼠标右键点击** | 拇指与中指捏合 | $\rho_{4, 12} \lt 0.28 \times S_{\text{palm}}$ | 触发上下文菜单 `mouse.right_click()` |
-| **虚拟滚轮平滑滚动** | 食指与中指同时伸出并拢 | $F_{\text{index}}=1, F_{\text{mid}}=1$ ，指尖横向位移 | 根据指间垂直位移差连续滚动 `mouse.scroll(dy)` |
+| **光标平滑移动** | 食指伸出，其余手指收拢 | 仅 $F_{index} = 1$，其余为 0 | 180Hz 平滑更新鼠标坐标 $(X, Y)$ |
+| **鼠标左键单击 / 拖拽** | 拇指与食指捏合 | $\rho_{4, 8} \lt 0.28 \times S_{palm}$ | 单击派发 `mouse.down/up`；捏住不放进入拖拽模式 |
+| **鼠标右键点击** | 拇指与中指捏合 | $\rho_{4, 12} \lt 0.28 \times S_{palm}$ | 触发上下文菜单 `mouse.right_click()` |
+| **虚拟滚轮平滑滚动** | 食指与中指同时伸出并拢 | $F_{index}=1, F_{mid}=1$，指尖横向位移 | 根据指间垂直位移差连续滚动 `mouse.scroll(dy)` |
 | **空闲 / 待命模式** | 五指自然握拳或完全张开 | 不符合上述交互模式特征 | 光标保持原位，冻结触发，防止误动作 |
 
 ---
@@ -194,11 +195,11 @@ $$
 
 | 分辨率配置 | 推理帧率 (FPS) | 算法端到端延迟 | 插值输出频率 | CPU 占用率 | 内存消耗 (RAM) | 综合评级 |
 |:---|:---:|:---:|:---:|:---:|:---:|:---:|
-| **640 × 480 (默认推荐)** | **30 ~ 35 FPS** | **< 33 ms** | **180 Hz** | **16% ~ 18%** | **~120 MB** | 🌟 **卓越 (Optimal)** |
-| **1280 × 720 (高清采样)** | 22 ~ 25 FPS | ~44 ms | 180 Hz | 32% ~ 35% | ~155 MB | 良好 (High Precision) |
-| **1920 × 1080 (超清输入)** | 13 ~ 15 FPS | ~71 ms | 180 Hz | 60% ~ 65% | ~210 MB | 算力受限 (Heavy) |
+| **640 × 480 (默认推荐)** | **30 ~ 35 FPS** | **< 33 ms** | **180 Hz** | **16% ~ 18%** | **~ 120 MB** | 🌟 **卓越 (Optimal)** |
+| **1280 × 720 (高清采样)** | 22 ~ 25 FPS | ~ 44 ms | 180 Hz | 32% ~ 35% | ~ 155 MB | 良好 (High Precision) |
+| **1920 × 1080 (超清输入)** | 13 ~ 15 FPS | ~ 71 ms | 180 Hz | 60% ~ 65% | ~ 210 MB | 算力受限 (Heavy) |
 
-> **评测结论**：在 640 × 480 模式下，算法运算延迟小于单帧曝光周期，CPU 占用率低于 20%，不仅完全满足主流办公与人机交互操作，且为后台其它应用程序预留了充沛算力空间。
+> **评测结论**：640 × 480 模式下算法运算延迟小于单帧曝光周期，CPU 占用率低于 20%，不仅完全满足主流办公与人机交互操作，且为后台其它应用程序预留了充沛算力空间。
 
 ---
 

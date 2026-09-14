@@ -88,6 +88,7 @@ flowchart LR
 ```
 
 ### 1. MediaPipe BlazePalm & 21-Keypoint 3D Spatial Topology
+
 The system uses a single-shot BlazePalm detector for hand presence and palm rotation estimation, followed by a regression network estimating 21 3D landmarks:
 
 $$
@@ -97,44 +98,47 @@ $$
 where $P_0$ represents the Wrist, $P_5$ denotes the Index Finger MCP joint, $P_8$ is the Index Fingertip, and $P_{12}$ is the Middle Fingertip.
 
 ### 2. Dynamic Aspect-Ratio ROI Mapping
-To mitigate peripheral camera lens distortion and reduce user muscular fatigue, a dynamic Region of Interest (ROI) with reduction margins ($R_x, R_y$) is mapped across camera dimensions ($W_{\text{cam}}, H_{\text{cam}}$):
+
+To mitigate peripheral camera lens distortion and reduce user muscular fatigue, a dynamic Region of Interest (ROI) with reduction margins ($R_x, R_y$) is mapped across camera dimensions ($W_{cam}, H_{cam}$):
 
 $$
-x_{\text{norm}} = \text{clamp}\left(\frac{x_{\text{raw}} - R_x}{W_{\text{cam}} - 2R_x}, 0.0, 1.0\right)
-$$
-
-$$
-y_{\text{norm}} = \text{clamp}\left(\frac{y_{\text{raw}} - R_y}{H_{\text{cam}} - 2R_y}, 0.0, 1.0\right)
-$$
-
-Target coordinates on display resolution ($W_{\text{screen}}, H_{\text{screen}}$) are derived via:
-
-$$
-X_{\text{target}} = \text{round}\left( x_{\text{norm}} \cdot W_{\text{screen}} \cdot \gamma_x \right)
+x_{norm} = \text{clamp}\left(\frac{x_{raw} - R_x}{W_{cam} - 2R_x}, 0.0, 1.0\right)
 $$
 
 $$
-Y_{\text{target}} = \text{round}\left( y_{\text{norm}} \cdot H_{\text{screen}} \cdot \gamma_y \right)
+y_{norm} = \text{clamp}\left(\frac{y_{raw} - R_y}{H_{cam} - 2R_y}, 0.0, 1.0\right)
+$$
+
+Target coordinates on display resolution $(W_{screen}, H_{screen})$ are derived via:
+
+$$
+X_{target} = \text{round}\left( x_{norm} \cdot W_{screen} \cdot \gamma_x \right)
+$$
+
+$$
+Y_{target} = \text{round}\left( y_{norm} \cdot H_{screen} \cdot \gamma_y \right)
 $$
 
 where $\gamma_x, \gamma_y$ are user-configurable sensitivity gain multipliers (defaults: 1.5x).
 
 ### 3. Palm Scale-Invariant Decision Criteria
-Because user distance to the camera fluctuates continuously, static pixel distance thresholds inevitably degrade. The system calculates the real-time **Palm Scale** ($S_{\text{palm}}$) as the Euclidean distance between the wrist ($P_0$) and middle finger MCP joint ($P_9$):
+
+Because user distance to the camera fluctuates continuously, static pixel distance thresholds inevitably degrade. The system calculates the real-time **Palm Scale** ($S_{palm}$) as the Euclidean distance between the wrist ($P_0$) and middle finger MCP joint ($P_9$):
 
 $$
-S_{\text{palm}} = \|P_9 - P_0\|_2 = \sqrt{(x_9 - x_0)^2 + (y_9 - y_0)^2}
+S_{palm} = \lVert P_9 - P_0 \rVert_2 = \sqrt{(x_9 - x_0)^2 + (y_9 - y_0)^2}
 $$
 
 The dimensionless normalized distance between any two keypoints $P_i$ and $P_j$ is given by:
 
 $$
-\rho_{ij} = \frac{\|P_i - P_j\|_2}{S_{\text{palm}}}
+\rho_{ij} = \frac{\lVert P_i - P_j \rVert_2}{S_{palm}}
 $$
 
-Left clicks or drag states are triggered when $\rho_{\text{thumb}, \text{index}} \lt \tau_{\text{click}}$, entirely immune to depth perspective shifts.
+Left clicks or drag states are triggered when $\rho_{thumb, index} \lt \tau_{click}$, entirely immune to depth perspective shifts.
 
 ### 4. Quadratic Adaptive Low-Pass Filter (Q-LPF)
+
 To eliminate stationary micro-jitter without introducing tracking latency during rapid sweeps, the smoothing coefficient is governed by a quadratic velocity response equation:
 
 $$
@@ -142,33 +146,31 @@ $$
 $$
 
 $$
-\alpha_t = \text{clamp}\left( \frac{1}{\text{smooth}} \cdot \left(\frac{\Delta_t}{\delta_0}\right)^2, \alpha_{\min}, \alpha_{\max} \right)
+\alpha_t = \text{clamp}\left( \frac{1}{\text{smooth}} \cdot \left(\frac{\Delta_t}{\delta_0}\right)^2, \alpha_{min}, \alpha_{max} \right)
 $$
 
-where $\delta_0 = 45.0\text{ px}$ is the reference displacement baseline, and $[\alpha_{\min}, \alpha_{\max}] = [0.05, 0.95]$:
+where $\delta_0 = 45.0\text{ px}$ is the reference displacement baseline, and $[\alpha_{min}, \alpha_{max}] = [0.05, 0.95]$:
 - **Stationary / Subtle Adjustments** ($\Delta_t \to 0$): $\alpha_t \to 0.05$, applying aggressive low-pass smoothing; displacements below the deadzone ($\lt 0.6\text{ px}$) are completely filtered out.
 - **Fast Sweeping Motion** ($\Delta_t \gg 45$): $\alpha_t \to 0.95$, dampening filtering resistance for immediate, 1:1 cursor response.
 
 The smoothed output coordinate update follows:
 
 $$
-\hat{X}_t = \alpha_t X_t + (1 - \alpha_t) \hat{X}_{t-1}
-$$
-
-$$
-\hat{Y}_t = \alpha_t Y_t + (1 - \alpha_t) \hat{Y}_{t-1}
+\hat{X}_t = \alpha_t X_t + (1 - \alpha_t) \hat{X}_{t-1},\quad \hat{Y}_t = \alpha_t Y_t + (1 - \alpha_t) \hat{Y}_{t-1}
 $$
 
 ### 5. 180Hz Multithreaded Interpolation Engine
-Standard single-threaded implementations bottleneck cursor refresh rates to the camera frame rate (~30Hz). This architecture runs an **independent daemon thread at $f_{\text{interp}} = 180\text{ Hz}$** (period $\sim 5.5\text{ ms}$):
+
+Standard single-threaded implementations bottleneck cursor refresh rates to the camera frame rate (~30Hz). This architecture runs an **independent daemon thread at $f_{interp} = 180\text{ Hz}$** (period $\sim 5.5\text{ ms}$):
 
 $$
-\Delta X = X_{\text{target}} - X_{\text{current}}, \quad \Delta Y = Y_{\text{target}} - Y_{\text{current}}
+\Delta X = X_{target} - X_{current},\quad \Delta Y = Y_{target} - Y_{current}
 $$
 
-Whenever $\|\Delta\|_2 \gt \epsilon$, adaptive subpixel steps update the OS mouse position, delivering esports-grade cursor smoothness even on low-cost 30 FPS cameras.
+Whenever $\lVert \Delta \rVert_2 \gt \epsilon$, adaptive subpixel steps update the OS mouse position, delivering esports-grade cursor smoothness even on low-cost 30 FPS cameras.
 
 ### 6. MCP Landmark-5 Anchor Stabilization
+
 When a user flexes their index finger to click, rotational torque around the MCP joint shifts the fingertip. The system circumvents this by **dynamically transferring tracking authority to Landmark 5 (Index MCP)** upon detecting a pre-click state, locking previous target coordinates and eliminating click drift.
 
 ---
@@ -179,10 +181,10 @@ Ergonomically validated to minimize wrist and finger fatigue during prolonged op
 
 | Action | Hand Gesture | Decision Logic | Dispatched OS Event |
 |:---|:---|:---|:---|
-| **Cursor Tracking** | Index finger extended, all others curled | Only $F_{\text{index}} = 1$, others $=0$ | 180Hz subpixel cursor movement $(X, Y)$ |
-| **Left Click / Drag** | Thumb and index fingertip pinch | $\rho_{4, 8} \lt 0.28 \times S_{\text{palm}}$ | Tap for `mouse.click()`; hold for drag-and-drop |
-| **Right Click** | Thumb and middle fingertip pinch | $\rho_{4, 12} \lt 0.28 \times S_{\text{palm}}$ | Dispatches context menu event `mouse.right_click()` |
-| **Virtual Scroll** | Index & middle fingers extended parallel | $F_{\text{index}}=1, F_{\text{mid}}=1$, dual finger motion | Dispatches continuous vertical scroll `mouse.scroll(dy)` |
+| **Cursor Tracking** | Index finger extended, all others curled | Only $F_{index} = 1$, others $= 0$ | 180Hz subpixel cursor movement $(X, Y)$ |
+| **Left Click / Drag** | Thumb and index fingertip pinch | $\rho_{4, 8} \lt 0.28 \times S_{palm}$ | Tap for `mouse.click()`; hold for drag-and-drop |
+| **Right Click** | Thumb and middle fingertip pinch | $\rho_{4, 12} \lt 0.28 \times S_{palm}$ | Dispatches context menu event `mouse.right_click()` |
+| **Virtual Scroll** | Index & middle fingers extended parallel | $F_{index} = 1, F_{mid} = 1$, dual finger motion | Dispatches continuous vertical scroll `mouse.scroll(dy)` |
 | **Idle / Neutral** | Natural fist or open relaxed hand | Non-conforming geometry | Cursor motion and actions safely frozen |
 
 ---
@@ -193,11 +195,11 @@ Empirical benchmark evaluated on a standard ultrabook equipped with an integrate
 
 | Resolution | Inference FPS | Pipeline Latency | Interpolation Rate | CPU Utilization | Memory (RAM) | Evaluation |
 |:---|:---:|:---:|:---:|:---:|:---:|:---:|
-| **640 × 480 (Recommended)** | **30 ~ 35 FPS** | **< 33 ms** | **180 Hz** | **16% ~ 18%** | **~120 MB** | 🌟 **Optimal** |
-| **1280 × 720 (HD Capture)** | 22 ~ 25 FPS | ~44 ms | 180 Hz | 32% ~ 35% | ~155 MB | High Precision |
-| **1920 × 1080 (Full HD)** | 13 ~ 15 FPS | ~71 ms | 180 Hz | 60% ~ 65% | ~210 MB | Computationally Heavy |
+| **640 × 480 (Recommended)** | **30 ~ 35 FPS** | **< 33 ms** | **180 Hz** | **16% ~ 18%** | **~ 120 MB** | 🌟 **Optimal** |
+| **1280 × 720 (HD Capture)** | 22 ~ 25 FPS | ~ 44 ms | 180 Hz | 32% ~ 35% | ~ 155 MB | High Precision |
+| **1920 × 1080 (Full HD)** | 13 ~ 15 FPS | ~ 71 ms | 180 Hz | 60% ~ 65% | ~ 210 MB | Computationally Heavy |
 
-> **Summary**: Operating at 640 × 480 produces processing latencies well within the single-frame exposure budget (<33ms) while consuming under 20% CPU, preserving extensive compute margins for concurrent applications.
+> **Summary**: Operating at 640 × 480 produces processing latencies well within the single-frame exposure budget ($<33\text{ms}$) while consuming under $20\%$ CPU, preserving extensive compute margins for concurrent applications.
 
 ---
 
