@@ -36,7 +36,7 @@ Unused`findDistance(draw=True)` passes floating points to OpenCV drawing calls. 
 Tracking always uses Landmark5; it does not switch or freeze at click onset. `np.interp` maps the reduced active area to screen coordinates and clamps outside endpoints. There is no distortion calibration or extra gamma sensitivity multiplier:
 
 ```math
-X=W_s\operatorname{clip}\left(\frac{x_5-R_x}{640-2R_x},0,1\right),\quad Y=H_s\operatorname{clip}\left(\frac{y_5-R_y}{480-2R_y},0,1\right)
+X=W_s\mathrm{clip}\left(\frac{x_5-R_x}{640-2R_x},0,1\right),\quad Y=H_s\mathrm{clip}\left(\frac{y_5-R_y}{480-2R_y},0,1\right)
 ```
 
 Initial margins are130/115. Slider callbacks set`int(320-280/vx)`/`int(240-188/vy)`; displayed1.5 and initial130 are not identical. Mapping assumes the camera supplies640×480; multiple resolutions/monitors are not verified.

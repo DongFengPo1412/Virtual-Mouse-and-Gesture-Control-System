@@ -36,7 +36,7 @@ S=\sqrt{(x_9-x_0)^2+(y_9-y_0)^2},\qquad r_{ij}=\frac{\sqrt{(x_i-x_j)^2+(y_i-y_j)
 常にLandmark5を使い、クリック前後で切替・固定しません。縮小活動域を`np.interp`で画面へ写し、範囲外は端点です。レンズ校正や追加gamma感度係数はありません。
 
 ```math
-X=W_s\operatorname{clip}\left(\frac{x_5-R_x}{640-2R_x},0,1\right),\quad Y=H_s\operatorname{clip}\left(\frac{y_5-R_y}{480-2R_y},0,1\right)
+X=W_s\mathrm{clip}\left(\frac{x_5-R_x}{640-2R_x},0,1\right),\quad Y=H_s\mathrm{clip}\left(\frac{y_5-R_y}{480-2R_y},0,1\right)
 ```
 
 初期余白130/115、スライダーは`int(320-280/vx)`／`int(240-188/vy)`で、表示1.5と初期130は完全一致しません。カメラが640×480を返す仮定で、複数解像度・画面は未検証です。

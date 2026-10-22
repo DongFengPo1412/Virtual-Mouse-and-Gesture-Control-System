@@ -36,7 +36,7 @@ S=\sqrt{(x_9-x_0)^2+(y_9-y_0)^2},\qquad r_{ij}=\frac{\sqrt{(x_i-x_j)^2+(y_i-y_j)
 相机坐标始终用Landmark5，并非点击前后切换或冻结。`np.interp`在缩减活动区内线性映射，越界取端点；没有畸变标定或额外gamma灵敏度乘数：
 
 ```math
-X=W_s\operatorname{clip}\left(\frac{x_5-R_x}{640-2R_x},0,1\right),\quad Y=H_s\operatorname{clip}\left(\frac{y_5-R_y}{480-2R_y},0,1\right)
+X=W_s\mathrm{clip}\left(\frac{x_5-R_x}{640-2R_x},0,1\right),\quad Y=H_s\mathrm{clip}\left(\frac{y_5-R_y}{480-2R_y},0,1\right)
 ```
 
 初始边距130/115。滑块回调把边距设为`int(320-280/vx)`／`int(240-188/vy)`；滑块显示1.5和初始130并非完全相同。依赖实际相机兑现640×480，不能直接声称多分辨率和多屏映射已验证。
