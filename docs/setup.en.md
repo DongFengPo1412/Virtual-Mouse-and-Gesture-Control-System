@@ -31,28 +31,20 @@ python main.py
 
 Launch from the root. Control starts enabled; camera 0 requests 640×480, without a camera-selection menu. Switches control detection/preview. Higher smoothing slows response; X/Y sliders shrink the active area to increase sensitivity.
 
-Extend index to move; pinch thumb/index to hold left and release to let go/finish drag. Right pinch uses thumb/middle only when movement is not selected. Scroll with three fingers up/little down, displacing vertically from entry center; recenter to stop. Q/Esc quit shortcuts are absent: close the main window normally. Hiding preview does not stop detection.
+Extend index to move; pinch thumb/index to hold left and release to finish drag. Right pinch uses thumb/middle only when movement is not selected. Scroll with three fingers up/little down, displacing from the entry center; recenter to stop. Esc closes the main window or disables control from the preview. Hiding preview does not stop detection.
 
 <a id="lifecycle"></a>
 
-## Known disable/exit behavior
+## Disable and exit
 
-The program emits real cursor/button/wheel events. It disables PyAutoGUI corner FAILSAFE, and disable/close may leave left held. Keep physical input available and release the pinch before closing during trials. This is a current defect, not a documented fix.
-
-Camera failure, worker exceptions, degenerate palm scale, and background Tk-variable access can interrupt cleanup. The switch is not a verified global emergency stop or input-isolation mechanism.
+Esc in the main window closes it; Esc in the OpenCV preview disables control, which can be re-enabled in the GUI. Pause, missing/invalid hands, failed camera reads, and exit use shared release. Backend errors disable control and retain an error. Detection-thread join has a one-second timeout; it cannot guarantee immediate termination of every blocking camera driver.
 
 <a id="checks"></a>
 
 ## Checks and further validation
 
-This audit parsed four sources without instantiating MouseController: construction reads the desktop and starts a permanent input worker. No mocked test is presented as successful camera/OS operation.
+```powershell
+python -B -m unittest discover -s tests -v
+```
 
-| Symptom | Inspect |
-| :--- | :--- |
-| No MediaPipe solutions | Installed API differs; use an environment exposing the required Hands interface. |
-| Incorrect cursor range/direction | Mirroring, actual frame size, fixed 640/480 mapping, margins, desktop dimensions. |
-| Missing/repeated right click | Movement priority, index state,0.35 threshold,0.5 s logic. |
-| Held button after disabling | Known cleanup gap; recover with physical input and fix lifecycle separately. |
-| Different FPS/responsiveness | Loop estimate and fixed 180 Hz label are not performance guarantees. |
-
-First verify input release/thread exit, then tracking error, poses, clicks/drags/scrolls, and timestamped OS events.
+Ten tests cover drag release, camera failure, held right pinch, invalid coordinates/scale, screen bounds, input failures, and worker exit using a fake input backend. No OS events are emitted. Validate physical-input fallback, corner FAILSAFE, Esc, and camera errors on the target desktop. Historical performance numbers are not new results.

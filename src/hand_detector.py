@@ -80,13 +80,15 @@ class HandDetector:
     def fingersUp(self, handNo=0):
         """
         根据指点与手腕（或相邻关节）的欧氏距离比值判定手指是否竖起。
-        此算法完全旋转无关（Rotation-Invariant），无论手部侧倾、旋转还是倒置，均能精准检测。
+        使用图像平面比例规则，不保证任意三维视角下的准确性。
         """
         fingers = []
-        if len(self.lmList) == 0:
+        if len(self.lmList) != 21:
             return fingers
 
         palm_scale = self.getPalmScale()
+        if not math.isfinite(palm_scale) or palm_scale <= 1e-6:
+            return []
 
         # 1. 大拇指判定：计算大拇指尖(4)到食指根部关节(5)的距离
         # 伸直时距离较大（通常 > 0.58 * palm_scale），弯折时贴近食指根部
@@ -124,7 +126,7 @@ class HandDetector:
         作为手掌在镜头中大小的基准比例值，用于各种手势距离的自适应归一化
         """
         if len(self.lmList) < 10:
-            return 1.0  # 避免除以 0
+            return 0.0  # 调用方将不完整或退化的手掌视为无效输入
         x0, y0 = self.lmList[0][1:]
         x9, y9 = self.lmList[9][1:]
         return math.hypot(x9 - x0, y9 - y0)
@@ -134,8 +136,8 @@ class HandDetector:
         if len(self.lmList) == 0:
             return 0, img, []
 
-        x1, y1 = self.lmList[p1][1:]
-        x2, y2 = self.lmList[p2][1:]
+        x1, y1 = map(int, self.lmList[p1][1:])
+        x2, y2 = map(int, self.lmList[p2][1:])
         cx, cy = (x1 + x2) // 2, (y1 + y2) // 2
 
         length = math.hypot(x2 - x1, y2 - y1)

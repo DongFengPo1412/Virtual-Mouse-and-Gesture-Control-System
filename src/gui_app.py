@@ -18,7 +18,7 @@ class VirtualMouseApp(ctk.CTk):
         super().__init__()
 
         # 1. 窗口基础设置
-        self.title("AI 虚拟鼠标控制面板 (180Hz 极速优化版)")
+        self.title("AI 虚拟鼠标控制面板")
         self.geometry("780x480")
         self.resizable(False, False)
 
@@ -31,6 +31,9 @@ class VirtualMouseApp(ctk.CTk):
 
         # 3. 创建界面布局
         self._create_widgets()
+        self._preview_enabled = bool(self.show_preview.get())
+        self.show_preview.trace_add("write", self._cache_preview)
+        self.bind("<Escape>", lambda event: self._on_closing())
 
         # 4. 绑定窗口关闭事件
         self.protocol("WM_DELETE_WINDOW", self._on_closing)
@@ -126,7 +129,7 @@ class VirtualMouseApp(ctk.CTk):
         # 卡片 4：插值刷新率
         self.card_rate = ctk.CTkFrame(self.dashboard_frame, height=100)
         self.card_rate.grid(row=2, column=1, padx=10, pady=10, sticky="nsew")
-        self.rate_title = ctk.CTkLabel(self.card_rate, text="鼠标平滑插值率", font=ctk.CTkFont(size=12, weight="bold"))
+        self.rate_title = ctk.CTkLabel(self.card_rate, text="平滑线程循环目标", font=ctk.CTkFont(size=12, weight="bold"))
         self.rate_title.pack(padx=10, pady=(10, 2), anchor="w")
         self.rate_value = ctk.CTkLabel(self.card_rate, text="180 Hz", font=ctk.CTkFont(size=22, weight="bold", family="Consolas"), text_color="#9B59B6")
         self.rate_value.pack(padx=10, pady=(2, 10), anchor="w")
@@ -146,7 +149,10 @@ class VirtualMouseApp(ctk.CTk):
     # ==========================================
     def _toggle_system(self):
         """开启或关闭鼠标控制器的检测响应"""
-        self.controller.active = self.switch_system.get()
+        self.controller.set_active(self.switch_system.get())
+
+    def _cache_preview(self, *_):
+        self._preview_enabled = bool(self.show_preview.get())
 
     def _update_smooth(self, value):
         """更新平滑因子（延迟度）"""
@@ -174,76 +180,88 @@ class VirtualMouseApp(ctk.CTk):
         cap.set(3, 640)
         cap.set(4, 480)
 
-        p_time = 0
+        try:
+            p_time = time.perf_counter()
 
-        while self.running:
-            if not self.controller.active:
-                self.controller.fps_val = 0
-                time.sleep(0.1)
-                continue
+            while self.running:
+                if not self.controller.active:
+                    self.controller.release_input("System Off")
+                    self.controller.fps_val = 0
+                    time.sleep(0.1)
+                    continue
 
-            success, img = cap.read()
-            if not success:
-                time.sleep(0.03)
-                continue
+                success, img = cap.read()
+                if not success:
+                    self.controller.release_input("Camera Unavailable")
+                    time.sleep(0.03)
+                    continue
 
-            # 镜像翻转，并运行手部定位
-            img = cv2.flip(img, 1)
-            img = self.detector.findHands(img, draw=self.show_preview.get())
-            lmList, bbox = self.detector.findPosition(img, draw=False)
+                # 镜像翻转，并运行手部定位
+                img = cv2.resize(cv2.flip(img, 1), (640, 480))
+                img = self.detector.findHands(img, draw=self._preview_enabled)
+                lmList, bbox = self.detector.findPosition(img, draw=False)
 
-            # 更新手别共享数据
-            if len(lmList) != 0:
-                hand_type = self.detector.getHandedness(0)
-                fingers = self.detector.fingersUp(0)
-                palm_scale = self.detector.getPalmScale()
+                # 更新手别共享数据
+                if len(lmList) != 0:
+                    hand_type = self.detector.getHandedness(0)
+                    fingers = self.detector.fingersUp(0)
+                    palm_scale = self.detector.getPalmScale()
 
-                self.controller.hand_type_val = hand_type
-                # 更新坐标，传给控制器由 180Hz 线程去插值移动
-                self.controller.move_and_action(lmList, fingers, palm_scale, img)
+                    self.controller.hand_type_val = hand_type
+                    # 更新坐标，传给控制器由 180Hz 线程去插值移动
+                    self.controller.move_and_action(lmList, fingers, palm_scale, img)
 
-                # 如果开启画面监控，绘制边界框
-                if self.show_preview.get() and bbox:
-                    xmin, ymin, xmax, ymax = bbox
-                    cv2.rectangle(img, (xmin - 15, ymin - 15), (xmax + 15, ymax + 15), (0, 255, 100), 2)
-            else:
-                self.controller.move_and_action([], [], 1.0)
-                self.controller.hand_type_val = "N/A"
+                    # 如果开启画面监控，绘制边界框
+                    if self._preview_enabled and bbox:
+                        xmin, ymin, xmax, ymax = bbox
+                        cv2.rectangle(img, (xmin - 15, ymin - 15), (xmax + 15, ymax + 15), (0, 255, 100), 2)
+                else:
+                    self.controller.move_and_action([], [], 1.0)
+                    self.controller.hand_type_val = "N/A"
 
-            # 计算摄像头采集帧率
-            c_time = time.time()
-            fps = 1.0 / (c_time - p_time) if (c_time - p_time) > 0 else 0
-            p_time = c_time
-            self.controller.fps_val = int(fps)
+                # 计算摄像头采集帧率
+                c_time = time.perf_counter()
+                fps = 1.0 / (c_time - p_time) if (c_time - p_time) > 0 else 0
+                p_time = c_time
+                self.controller.fps_val = int(fps)
 
-            # 如果显示相机监控画面，使用 OpenCV GUI 展示
-            if self.show_preview.get():
-                # 绘制当前动态生效的灵敏度活动红框
-                fr_x = self.controller.frameR_x
-                fr_y = self.controller.frameR_y
-                cv2.rectangle(img, (fr_x, fr_y), (640 - fr_x, 480 - fr_y), (255, 0, 180), 2)
-                cv2.putText(img, "Active Area", (fr_x + 10, fr_y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 180), 1)
+                # 如果显示相机监控画面，使用 OpenCV GUI 展示
+                if self._preview_enabled:
+                    # 绘制当前动态生效的灵敏度活动红框
+                    fr_x = self.controller.frameR_x
+                    fr_y = self.controller.frameR_y
+                    cv2.rectangle(img, (fr_x, fr_y), (640 - fr_x, 480 - fr_y), (255, 0, 180), 2)
+                    cv2.putText(img, "Active Area", (fr_x + 10, fr_y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 180), 1)
 
-                # 绘制顶部半透明 OSD 面板
-                overlay = img.copy()
-                cv2.rectangle(overlay, (0, 0), (640, 45), (0, 0, 0), cv2.FILLED)
-                cv2.addWeighted(overlay, 0.4, img, 0.6, 0, img)
+                    # 绘制顶部半透明 OSD 面板
+                    overlay = img.copy()
+                    cv2.rectangle(overlay, (0, 0), (640, 45), (0, 0, 0), cv2.FILLED)
+                    cv2.addWeighted(overlay, 0.4, img, 0.6, 0, img)
 
-                cv2.putText(img, f"FPS: {self.controller.fps_val}", (15, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
-                cv2.putText(img, f"Hand: {self.controller.hand_type_val}", (140, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
-                cv2.putText(img, f"Action: {self.controller.action_val}", (300, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (100, 255, 100), 2)
+                    cv2.putText(img, f"FPS: {self.controller.fps_val}", (15, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
+                    cv2.putText(img, f"Hand: {self.controller.hand_type_val}", (140, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
+                    cv2.putText(img, f"Action: {self.controller.action_val}", (300, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (100, 255, 100), 2)
 
-                cv2.imshow("AI Virtual Mouse Monitor", img)
-                cv2.waitKey(1)
-            else:
-                # 若开关关闭，销毁 OpenCV 窗口释放硬件渲染开销
-                try:
-                    cv2.destroyWindow("AI Virtual Mouse Monitor")
-                except Exception:
-                    pass
+                    cv2.imshow("AI Virtual Mouse Monitor", img)
+                    if cv2.waitKey(1) & 0xFF == 27:
+                        self.controller.set_active(False)
+                else:
+                    # 若开关关闭，销毁 OpenCV 窗口释放硬件渲染开销
+                    try:
+                        cv2.destroyWindow("AI Virtual Mouse Monitor")
+                    except Exception:
+                        pass
 
-        cap.release()
-        cv2.destroyAllWindows()
+        except Exception as exc:
+            self.controller.last_error = str(exc)
+            self.controller.set_active(False)
+        finally:
+            try:
+                self.controller.release_input("Stopped")
+            finally:
+                cap.release()
+                self.detector.hands.close()
+                cv2.destroyAllWindows()
 
     # ==========================================
     # GUI 数据定时刷新循环 (约 10Hz)
@@ -261,6 +279,8 @@ class VirtualMouseApp(ctk.CTk):
 
         # 3. 刷新检测状态与显示颜色
         action = self.controller.action_val
+        if not self.controller.active:
+            self.switch_system.deselect()
         self.status_value.configure(text=action)
 
         if action == "Left Click / Drag":
@@ -282,7 +302,6 @@ class VirtualMouseApp(ctk.CTk):
     def _on_closing(self):
         """关闭窗口时的安全释放逻辑"""
         self.running = False
-        self.controller.active = False
-        # 等待后台摄像头释放
-        time.sleep(0.2)
+        self.controller.close()
+        self.detection_thread.join(timeout=1.0)
         self.destroy()

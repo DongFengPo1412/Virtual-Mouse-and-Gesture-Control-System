@@ -36,7 +36,7 @@ Unused `findDistance(draw=True)` passes floating points to OpenCV drawing calls.
 Tracking always uses Landmark 5; it does not switch or freeze at click onset. `np.interp` maps the reduced active area to screen coordinates and clamps outside endpoints. There is no distortion calibration or extra gamma sensitivity multiplier:
 
 ```math
-X=W_s\mathrm{clip}\left(\frac{x_5-R_x}{640-2R_x},0,1\right),\quad Y=H_s\mathrm{clip}\left(\frac{y_5-R_y}{480-2R_y},0,1\right)
+X=(W_s-1)\mathrm{clip}\left(\frac{x_5-R_x}{640-2R_x},0,1\right),\quad Y=(H_s-1)\mathrm{clip}\left(\frac{y_5-R_y}{480-2R_y},0,1\right)
 ```
 
 Initial margins are 130/115. Slider callbacks set `int(320-280/vx)`/`int(240-188/vy)`; displayed 1.5 and initial 130 are not identical. Mapping assumes the camera supplies 640×480; multiple resolutions/monitors are not verified.
@@ -53,13 +53,11 @@ For s=4 the range is 0.008–0.25; s=1 can reach 1.0. It is not the old 0.05–0
 
 ## Priority and lifecycle
 
-Priority is inactive→no hand→move/left→right→scroll→ready. Movement requires an extended index, not all other fingers folded: an open palm may move, and movement takes priority over a middle pinch.
+Priority remains inactive/invalid input, move/left, right, scroll, ready. Right click fires on the pinch edge, stays latched until release, and retains a 0.5 s cooldown. Movement still has priority and an open palm can move. Left uses down/up for dragging; there is no dedicated double-click classifier.
 
-Both pinch thresholds are 0.35. Right-click logic alternately clears its flag while held and can click again after 0.5 s; it is not one click per pinch. Left uses down/up, holding permits dragging, and no explicit double-click state exists.
+Scroll still requires index/middle/ring up and little down. Landmark9 entry y is the center, with a 15-pixel deadzone and factor 0.25. Input checks require 21 finite points, five finger states, and a positive finite palm scale.
 
-Scroll requires index/middle/ring up and little down, ignoring thumb state. Landmark 9's entry y defines the center;15 camera pixels form a deadzone, then signed excess×0.25 is truncated/reversed and sent each detection iteration. It is not two-finger horizontal scrolling.
-
-Normal no-hand processing releases left. However, disabled GUI detection skips `move_and_action`, bypassing its inactive-release branch. Close only sets running/active and waits 0.2 s, without explicit mouseUp/join; interpolation loops forever as a daemon. Camera failure also skips cleanup. Source disables PyAutoGUI FAILSAFE, so corner escape is not promised.
+`set_active`, `release_input`, and `close` share cleanup. An RLock protects input state; an Event stops the smoothing thread and close joins it. GUI failure/finally paths release input and camera resources. PyAutoGUI FAILSAFE stays enabled; only forced left-button release temporarily bypasses the corner check under the lock, restoring it immediately. The worker reads a GUI-cached preview boolean.
 
 <a id="evidence"></a>
 
@@ -69,6 +67,4 @@ Normal no-hand processing releases left. However, disabled GUI detection skips `
 | :---: | :---: |
 | ![Tracking](images/demo_cursor_tracking.png) | ![Pinch](images/demo_pinch_click.png) |
 
-The 180 Hz card is a constant. FPS is an integer estimate from complete detection-loop time, initially measured from zero, not isolated model throughput. Targets/state have no locks, the worker reads Tk variables, and input/exit behavior needs platform validation.
-
-Four Python sources parsed, without camera/GUI/input testing. Former 33 ms,30–35 FPS,16–18% CPU,120 MB,720p/1080p tables lack scripts/raw logs and are removed as achievements. Installed-package metadata is not end-to-end validation.
+The 180 Hz card now labels a loop target, not measured input performance. Camera frames are resized to 640×480 before analysis; screen targets lie between zero and width/height minus one. Ten regressions use an injected fake backend without desktop events; four sources parse. Live camera/GUI behavior and blocking drivers remain platform-dependent tests.

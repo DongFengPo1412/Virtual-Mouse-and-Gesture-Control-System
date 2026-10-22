@@ -56,9 +56,9 @@ Use a desktop Python environment with camera/system-input permissions and MediaP
 
 ## Limits and next steps
 
-Only x/y are used; full 3D pose, arbitrary-view, or depth invariance is not established. Ratios reduce scale sensitivity only. A held right pinch can repeat clicks; an open palm can still move. Disable/close paths can leave the left button held.
+The x/y rules do not provide full 3D invariance; an open palm can still move. This revision unifies input release on pause, hand loss, camera failure, and exit. Right click uses a pinch edge; degenerate palm scales are rejected. Shared input state is locked and the smoothing worker has a stop/join lifecycle.
 
-Fix input release on disable/errors, right-click edges, zero palm scale, and thread coordination before collecting input/output timing and task-success results. Source remains unchanged; this pass corrects documentation.
+Ten headless regression tests passed, without camera, GUI, or real OS-input acceptance. Target-platform operation, camera-driver shutdown, and latency still require measurement.
 
 ## Attribution and license
 
