@@ -4,7 +4,7 @@ A camera-driven gesture mouse using MediaPipe Hands, OpenCV, PyAutoGUI, and Cust
 
 [简体中文](README.md) · **English** · [日本語](README_JA.md)
 
-**Explore：** [Technical notes](docs/technical-notes.en.md) · [Setup and operation](docs/setup.en.md)
+**Explore:** [Technical notes](docs/technical-notes.en.md) · [Setup and operation](docs/setup.en.md)
 
 Existing hand-landmark inference is connected to desktop input through joint tracking, palm-scale ratios, smoothing, and gesture states. Vision, cursor convergence, and GUI updates run separately. No project-trained hand model or reproducible industrial/fixed-latency performance is claimed.
 
@@ -23,7 +23,7 @@ flowchart LR
     Rules --> Status[Action and loop FPS]
 ```
 
-The detection worker requests 640×480. Another daemon sleeps`1/180 s`between smoothing iterations; GUI telemetry updates every 100 ms. These are scheduling settings, not measured 180 Hz input or camera performance.
+The detection worker requests 640×480. Another daemon sleeps `1/180 s` between smoothing iterations; GUI telemetry updates every 100 ms. These are scheduling settings, not measured 180 Hz input or camera performance.
 
 ## Controls and implementation
 
@@ -31,7 +31,7 @@ The detection worker requests 640×480. Another daemon sleeps`1/180 s`between sm
 | :--- | :--- |
 | Move | Outside scroll mode, index extended or left button held; always track index-base Landmark 5. |
 | Left/drag | In the movement branch, thumb/index-tip distance divided by palm scale below 0.35 triggers mouseDown; release triggers mouseUp. |
-| Right click | Only outside movement/scroll branches, thumb/middle ratio below 0.35, with a0.5 s interval. |
+| Right click | Only outside movement/scroll branches, thumb/middle ratio below 0.35, with a 0.5 s interval. |
 | Scroll | Index/middle/ring extended, little finger folded; middle-base vertical offset from entry acts as a joystick. |
 | GUI | Control/preview toggles, smoothing 1–15, X/Y sensitivity 1–3, handedness/action/loop FPS. |
 
@@ -52,7 +52,7 @@ python -m pip install -r requirements.txt
 python main.py
 ```
 
-Use a desktop Python environment with camera/system-input permissions and MediaPipe providing`mp.solutions.hands`. Control is enabled at startup and camera 0 is opened. Read [operation and exit limitations](docs/setup.en.md) before use. There is no network controller or project-checkpoint preparation step.
+Use a desktop Python environment with camera/system-input permissions and MediaPipe providing `mp.solutions.hands`. Control is enabled at startup and camera 0 is opened. Read [operation and exit limitations](docs/setup.en.md) before use. There is no network controller or project-checkpoint preparation step.
 
 ## Limits and next steps
 

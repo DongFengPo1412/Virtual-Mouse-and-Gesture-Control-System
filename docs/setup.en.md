@@ -18,7 +18,7 @@
 └── docs/   # trilingual guides and existing screenshots
 ```
 
-Prepare an isolated desktop Python3.10 environment with opencv-python,numpy,mediapipe,pyautogui,customtkinter. No lockfile exists; MediaPipe must expose`mp.solutions.hands`. Tkinter/camera/OS input access are required. This audit did not validate every platform.
+Prepare an isolated desktop Python 3.10 environment with opencv-python,numpy,mediapipe,pyautogui,customtkinter. No lockfile exists; MediaPipe must expose `mp.solutions.hands`. Tkinter/camera/OS input access are required. This audit did not validate every platform.
 
 <a id="operation"></a>
 
@@ -50,9 +50,9 @@ This audit parsed four sources without instantiating MouseController: constructi
 | Symptom | Inspect |
 | :--- | :--- |
 | No MediaPipe solutions | Installed API differs; use an environment exposing the required Hands interface. |
-| Incorrect cursor range/direction | Mirroring, actual frame size, fixed640/480 mapping, margins, desktop dimensions. |
+| Incorrect cursor range/direction | Mirroring, actual frame size, fixed 640/480 mapping, margins, desktop dimensions. |
 | Missing/repeated right click | Movement priority, index state,0.35 threshold,0.5 s logic. |
 | Held button after disabling | Known cleanup gap; recover with physical input and fix lifecycle separately. |
-| Different FPS/responsiveness | Loop estimate and fixed180 Hz label are not performance guarantees. |
+| Different FPS/responsiveness | Loop estimate and fixed 180 Hz label are not performance guarantees. |
 
 First verify input release/thread exit, then tracking error, poses, clicks/drags/scrolls, and timestamped OS events.
