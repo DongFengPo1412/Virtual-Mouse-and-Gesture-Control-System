@@ -29,7 +29,7 @@ python -m pip install -r requirements.txt
 python main.py
 ```
 
-Launch from the root. Control starts enabled; camera0 requests640×480, without a camera-selection menu. Switches control detection/preview. Higher smoothing slows response; X/Y sliders shrink the active area to increase sensitivity.
+Launch from the root. Control starts enabled; camera 0 requests 640×480, without a camera-selection menu. Switches control detection/preview. Higher smoothing slows response; X/Y sliders shrink the active area to increase sensitivity.
 
 Extend index to move; pinch thumb/index to hold left and release to let go/finish drag. Right pinch uses thumb/middle only when movement is not selected. Scroll with three fingers up/little down, displacing vertically from entry center; recenter to stop. Q/Esc quit shortcuts are absent: close the main window normally. Hiding preview does not stop detection.
 
