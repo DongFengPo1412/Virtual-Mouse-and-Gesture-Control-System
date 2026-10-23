@@ -25,9 +25,9 @@ GUI selects one hand,`model_complexity=0`, detection 0.75/tracking 0.55. Wrapper
 S=\sqrt{(x_9-x_0)^2+(y_9-y_0)^2},\qquad r_{ij}=\frac{\sqrt{(x_i-x_j)^2+(y_i-y_j)^2}}{S}
 ```
 
-Thumb 4-to-5/S uses 0.58; other fingertip-to-wrist ratios use 1.35/1.35/1.35/1.25. Plane distances are invariant to image-plane rotation, but perspective/occlusion/side views/near-zero S remain problematic. Insufficient landmarks return scale 1; actual coincident points are not guarded.
+Thumb 4-to-5/S uses 0.58; other fingertip-to-wrist ratios use 1.35/1.35/1.35/1.25. Image-plane distances are rotation-invariant, while perspective, occlusion and side views can still affect the rules. `getPalmScale` returns zero when fewer than ten landmarks are available; `fingersUp` and the controller reject nonfinite or near-zero scales and clear input state.
 
-Unused `findDistance(draw=True)` passes floating points to OpenCV drawing calls. The main GUI does not call this helper, so all auxiliary paths are not claimed runtime-tested.
+The auxiliary `findDistance(draw=True)` converts coordinates to integers before OpenCV drawing. The main GUI does not call this helper, and live-camera validation of that path was not performed.
 
 <a id="mapping"></a>
 
@@ -39,7 +39,7 @@ Tracking always uses Landmark 5; it does not switch or freeze at click onset. `n
 X=(W_s-1)\mathrm{clip}\left(\frac{x_5-R_x}{640-2R_x},0,1\right),\quad Y=(H_s-1)\mathrm{clip}\left(\frac{y_5-R_y}{480-2R_y},0,1\right)
 ```
 
-Initial margins are 130/115. Slider callbacks set `int(320-280/vx)`/`int(240-188/vy)`; displayed 1.5 and initial 130 are not identical. Mapping assumes the camera supplies 640×480; multiple resolutions/monitors are not verified.
+Initial margins are 130/115. Slider callbacks set `int(320-280/vx)`/`int(240-188/vy)`; displayed 1.5 and initial 130 are not identical. The GUI resizes frames to 640×480 before detection, so mapping uses that processing size. Multi-monitor and OS-scaling behavior still require live validation.
 
 The coefficient uses remaining target distance d, not time-measured hand velocity:
 
