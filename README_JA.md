@@ -2,7 +2,7 @@
 
 MediaPipe Hands、OpenCV、PyAutoGUI、CustomTkinterによるカメラ式ジェスチャーマウスです。
 
-[简体中文](README.md) · [English](README_EN.md) · **日本語**
+[简体中文](README_ZH.md) · [English](README.md) · **日本語**
 
 **詳細：** [技術ノート](docs/technical-notes.ja.md) · [導入と操作](docs/setup.ja.md)
 
